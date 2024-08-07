@@ -23,7 +23,7 @@ BEGIN
 	DECLARE @EndDate_Sniff DATETIME = @EndDate;
 	Declare @LoanProductId uniqueidentifier;
 
-	set @LoanProductId =(select CustomerAccountType_TargetProductId from vfin_CustomerAccounts where Id=@CustomerAccountID)
+	set @LoanProductId =(select CustomerAccountType_TargetProductId from CustomerAccounts where Id=@CustomerAccountID)
 
 	IF LEFT(CAST(@EndDate_Sniff AS TIME),5) = '00:00'
 	BEGIN
@@ -34,16 +34,16 @@ BEGIN
     SET @InterestChargeDate = (
         SELECT MAX(JE.CreatedDate)
         FROM vw_customeraccounts ca
-        INNER JOIN vfin_journalentries je ON ca.id = je.CustomerAccountId AND InterestReceivable = je.ChartOfAccountId
-        INNER JOIN Vfin_journals j ON j.id = je.JournalId
+        INNER JOIN journalentries je ON ca.id = je.CustomerAccountId AND InterestReceivable = je.ChartOfAccountId
+        INNER JOIN journals j ON j.id = je.JournalId
         WHERE ca.id = @CustomerAccountID and Amount<0 AND j.TransactionCode = 24
     );
 
     -- Get the grace period for the employer associated with the account
     SET @GracePeriod = (
         SELECT top 1 LoanInterestArrearsGracePeriod 
-        FROM vfin_Employers 
-        INNER JOIN vw_CustomerAccounts CA ON CA.EmployerID = vfin_Employers.ID
+        FROM Employers 
+        INNER JOIN vw_CustomerAccounts CA ON CA.EmployerID = Employers.ID
         WHERE ca.id = @CustomerAccountID
     );
 
@@ -52,8 +52,8 @@ BEGIN
     BEGIN
         SET @LoanCaseGracePeriod = (
             SELECT  top 1 LoanRegistration_GracePeriod 
-            FROM vfin_LoanCases 
-            INNER JOIN vw_CustomerAccounts CA ON CA.LoanCaseId = vfin_LoanCases.ID
+            FROM LoanCases 
+            INNER JOIN vw_CustomerAccounts CA ON CA.LoanCaseId = LoanCases.ID
             WHERE CA.id = @CustomerAccountID
         );
 
@@ -76,7 +76,7 @@ BEGIN
         -- Get the interest amount for the specified account up to the end date
         SELECT @InterestAmount = SUM(je.Amount) * -1
         FROM vw_customeraccounts ca
-        INNER JOIN vfin_journalentries je ON ca.id = je.CustomerAccountId AND InterestReceivable = je.ChartOfAccountId
+        INNER JOIN journalentries je ON ca.id = je.CustomerAccountId AND InterestReceivable = je.ChartOfAccountId
         WHERE ca.id = @CustomerAccountID AND je.CreatedDate <= @EndDate;
 
         -- Set the interest arrears if an amount is found
@@ -90,7 +90,7 @@ BEGIN
         -- Get the interest amount for the specified account before the interest charge date
         SELECT @InterestAmount = SUM(je.Amount) * -1
         FROM vw_customeraccounts ca
-        INNER JOIN vfin_journalentries je ON ca.id = je.CustomerAccountId AND InterestReceivable = je.ChartOfAccountId
+        INNER JOIN journalentries je ON ca.id = je.CustomerAccountId AND InterestReceivable = je.ChartOfAccountId
         WHERE ca.id = @CustomerAccountID AND je.CreatedDate < @InterestChargeDate;
 
         -- Set the interest arrears if an amount is found
@@ -100,7 +100,7 @@ BEGIN
         END
     END;
 	--Disregard Upfront loans interest charge mode
-	SET @InterestArrears = iif((select loanInterest_ChargeMode from vfin_LoanProducts where Id=@LoanProductId)=768,0,@InterestArrears);
+	SET @InterestArrears = iif((select loanInterest_ChargeMode from LoanProducts where Id=@LoanProductId)=768,0,@InterestArrears);
         
     -- Return the interest arrears
     SELECT @InterestArrears AS InterestArrears;
